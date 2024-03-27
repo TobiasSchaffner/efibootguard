@@ -39,6 +39,7 @@
 #include <efi.h>
 #include <efilib.h>
 #include <pci/header.h>
+#include <stdbool.h>
 #include <sys/io.h>
 #include <mmio.h>
 #include "simatic.h"
@@ -69,6 +70,8 @@ static int cr_wdt_control;	/* WDT control register */
 static int cr_wdt_csr;		/* WDT control & status register */
 static int wdt_cfg_enter = 0x87;/* key to unlock configuration space */
 static int wdt_cfg_leave = 0xAA;/* key to lock configuration space */
+static UINT32 station_id = 0;
+static BOOLEAN station_id_cached = false;
 
 static void superio_outb(int reg, int val)
 {
@@ -192,6 +195,15 @@ static int wdt_set_time(unsigned int timeout)
 	return 0;
 }
 
+static UINT32 cached_simatic_station_id(VOID)
+{
+	if (station_id_cached) return station_id;
+
+	station_id = simatic_station_id();
+	station_id_cached = true;
+	return station_id;
+}
+
 static EFI_STATUS init(EFI_PCI_IO *pci_io, UINT16 pci_vendor_id,
 		       UINT16 __attribute__((unused)) pci_device_id,
 		       UINTN timeout)
@@ -202,7 +214,7 @@ static EFI_STATUS init(EFI_PCI_IO *pci_io, UINT16 pci_vendor_id,
 		return EFI_UNSUPPORTED;
 	}
 
-	switch (simatic_station_id()) {
+	switch (cached_simatic_station_id()) {
 	case SIMATIC_IPCBX_56A:
 	case SIMATIC_IPCBX_59A:
 		chip = wdt_find(0x2e);
